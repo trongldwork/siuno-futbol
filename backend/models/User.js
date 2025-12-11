@@ -33,6 +33,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Phone number is required'],
     trim: true
+  },
+  role: {
+    type: String,
+    enum: ['User', 'SuperAdmin'],
+    default: 'User'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: true

@@ -232,3 +232,183 @@ export const createTeam = async (req, res) => {
     });
   }
 };
+
+// @desc    Change member role (Leader only)
+// @route   PUT /api/users/change-role
+// @access  Private (Leader only)
+export const changeRole = async (req, res) => {
+  try {
+    const { teamId, userId, newRole } = req.body;
+
+    if (!teamId || !userId || !newRole) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team ID, User ID and new role are required'
+      });
+    }
+
+    // Validate role
+    const validRoles = ['Member', 'Treasurer', 'Leader'];
+    if (!validRoles.includes(newRole)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role. Must be one of: ${validRoles.join(', ')}`
+      });
+    }
+
+    // Find requester's membership in this team
+    const requesterMembership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: teamId,
+      isActive: true
+    });
+
+    if (!requesterMembership) {
+      return res.status(404).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    // Only Leader can change roles
+    if (requesterMembership.role !== 'Leader') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only team leader can change member roles'
+      });
+    }
+
+    // Cannot change your own role
+    if (req.user._id.toString() === userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot change your own role'
+      });
+    }
+
+    // Find target user's membership
+    const targetMembership = await TeamMember.findOne({
+      userId: userId,
+      teamId: teamId,
+      isActive: true
+    }).populate('userId', 'name email');
+
+    if (!targetMembership) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found in your team'
+      });
+    }
+
+    const oldRole = targetMembership.role;
+    targetMembership.role = newRole;
+    await targetMembership.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Role changed successfully',
+      user: {
+        id: targetMembership.userId._id,
+        name: targetMembership.userId.name,
+        email: targetMembership.userId.email,
+        oldRole,
+        newRole
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error changing role',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Kick member from team (Leader only)
+// @route   POST /api/users/kick-member
+// @access  Private (Leader only)
+export const kickMember = async (req, res) => {
+  try {
+    const { teamId, userId } = req.body;
+
+    if (!teamId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team ID and User ID are required'
+      });
+    }
+
+    // Find requester's membership in this team
+    const requesterMembership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: teamId,
+      isActive: true
+    });
+
+    if (!requesterMembership) {
+      return res.status(404).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    // Only Leader can kick members
+    if (requesterMembership.role !== 'Leader') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only team leader can kick members'
+      });
+    }
+
+    // Cannot kick yourself
+    if (req.user._id.toString() === userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot kick yourself from the team'
+      });
+    }
+
+    // Find target user's membership
+    const targetMembership = await TeamMember.findOne({
+      userId: userId,
+      teamId: teamId,
+      isActive: true
+    }).populate('userId', 'name email');
+
+    if (!targetMembership) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found in your team'
+      });
+    }
+
+    // Check if user has debt
+    if (targetMembership.debt > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot kick member. User has outstanding debt of ${targetMembership.debt}`
+      });
+    }
+
+    // Deactivate membership
+    targetMembership.isActive = false;
+    targetMembership.leftAt = new Date();
+    await targetMembership.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Member kicked successfully',
+      user: {
+        id: targetMembership.userId._id,
+        name: targetMembership.userId.name,
+        email: targetMembership.userId.email
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error kicking member',
+      error: error.message
+    });
+  }
+};

@@ -3,7 +3,9 @@ import {
   joinTeam, 
   leaveTeam, 
   renewInviteLink,
-  createTeam 
+  createTeam,
+  changeRole,
+  kickMember
 } from '../controllers/userController.js';
 import { protect, authorize, requireTeam } from '../middleware/auth.js';
 
@@ -103,5 +105,78 @@ router.post('/leave', protect, requireTeam, leaveTeam);
  *         description: Forbidden - Leader only
  */
 router.post('/invite-link/renew', protect, requireTeam, authorize('Leader'), renewInviteLink);
+
+/**
+ * @swagger
+ * /api/users/change-role:
+ *   put:
+ *     tags: [Team]
+ *     summary: Change member role
+ *     description: Change a team member's role (Leader only)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - teamId
+ *               - userId
+ *               - newRole
+ *             properties:
+ *               teamId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *               userId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439012
+ *               newRole:
+ *                 type: string
+ *                 enum: [Member, Treasurer, Leader]
+ *                 example: Treasurer
+ *     responses:
+ *       200:
+ *         description: Role changed successfully
+ *       403:
+ *         description: Forbidden - Leader only
+ */
+router.put('/change-role', protect, requireTeam, authorize('Leader'), changeRole);
+
+/**
+ * @swagger
+ * /api/users/kick-member:
+ *   post:
+ *     tags: [Team]
+ *     summary: Kick member from team
+ *     description: Remove a member from the team (Leader only, member must have zero debt)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - teamId
+ *               - userId
+ *             properties:
+ *               teamId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *               userId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439012
+ *     responses:
+ *       200:
+ *         description: Member kicked successfully
+ *       400:
+ *         description: Cannot kick member with outstanding debt
+ *       403:
+ *         description: Forbidden - Leader only
+ */
+router.post('/kick-member', protect, requireTeam, authorize('Leader'), kickMember);
 
 export default router;

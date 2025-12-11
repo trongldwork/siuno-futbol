@@ -6,7 +6,9 @@ import {
   requestVoteChange,
   approveVoteChange,
   getMatchDetails,
-  toggleMatchLock
+  toggleMatchLock,
+  setMatchLineup,
+  getMatchLineup
 } from '../controllers/matchController.js';
 import { protect, authorize, requireTeam } from '../middleware/auth.js';
 
@@ -113,7 +115,7 @@ router.get('/:id', getMatchDetails);
  *   post:
  *     tags: [Matches]
  *     summary: Vote for a match
- *     description: Submit or update vote (before deadline)
+ *     description: Submit or update vote with optional guest count (before deadline)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -135,9 +137,13 @@ router.get('/:id', getMatchDetails);
  *                 type: string
  *                 enum: [Participate, Absent, Late]
  *                 example: Participate
+ *               guestCount:
+ *                 type: number
+ *                 example: 2
+ *                 default: 0
  *               note:
  *                 type: string
- *                 example: I'll be there!
+ *                 example: Dắt theo bạn em bắt gôn
  *     responses:
  *       200:
  *         description: Vote submitted
@@ -241,5 +247,77 @@ router.post('/:id/approve-change', authorize('Leader'), approveVoteChange);
  *         description: Forbidden - Leader only
  */
 router.patch('/:id/lock', authorize('Leader'), toggleMatchLock);
+
+/**
+ * @swagger
+ * /api/matches/{id}/lineup:
+ *   put:
+ *     tags: [Matches]
+ *     summary: Set match lineup
+ *     description: Set match lineup with auto-generate or manual assignment (Leader/Treasurer only)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - teamId
+ *             properties:
+ *               teamId:
+ *                 type: string
+ *               autoGenerate:
+ *                 type: boolean
+ *                 example: true
+ *               teamA:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: User IDs for Team A (required if autoGenerate is false)
+ *               teamB:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: User IDs for Team B (required if autoGenerate is false)
+ *     responses:
+ *       200:
+ *         description: Lineup set successfully
+ *       403:
+ *         description: Forbidden - Leader/Treasurer only
+ *       400:
+ *         description: Invalid lineup data or no participants
+ */
+router.put('/:id/lineup', authorize('Leader', 'Treasurer'), setMatchLineup);
+
+/**
+ * @swagger
+ * /api/matches/{id}/lineup:
+ *   get:
+ *     tags: [Matches]
+ *     summary: Get match lineup
+ *     description: Get match lineup information
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lineup retrieved successfully
+ *       404:
+ *         description: Lineup not found
+ */
+router.get('/:id/lineup', getMatchLineup);
 
 export default router;

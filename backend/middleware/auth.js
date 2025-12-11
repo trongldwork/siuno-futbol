@@ -102,3 +102,14 @@ export const requireTeam = async (req, res, next) => {
   }
   next();
 };
+
+// Check if user is SuperAdmin
+export const isSuperAdmin = (req, res, next) => {
+  if (req.user.role !== 'SuperAdmin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. SuperAdmin role required.'
+    });
+  }
+  next();
+};

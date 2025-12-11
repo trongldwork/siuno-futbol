@@ -1,6 +1,8 @@
 import Match from '../models/Match.js';
 import Vote from '../models/Vote.js';
 import TeamMember from '../models/TeamMember.js';
+import Lineup from '../models/Lineup.js';
+import User from '../models/User.js';
 
 // @desc    Create a new match
 // @route   POST /api/matches
@@ -121,7 +123,7 @@ export const getMatches = async (req, res) => {
 // @access  Private
 export const voteForMatch = async (req, res) => {
   try {
-    const { status, note } = req.body;
+    const { status, guestCount = 0, note } = req.body;
     const matchId = req.params.id;
 
     const match = await Match.findById(matchId);
@@ -164,6 +166,7 @@ export const voteForMatch = async (req, res) => {
     if (vote) {
       // Update existing vote
       vote.status = status;
+      vote.guestCount = guestCount || 0;
       vote.note = note;
       await vote.save();
     } else {
@@ -172,6 +175,7 @@ export const voteForMatch = async (req, res) => {
         userId: req.user._id,
         matchId,
         status,
+        guestCount: guestCount || 0,
         note
       });
     }
@@ -378,6 +382,225 @@ export const toggleMatchLock = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error toggling match lock',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Set match lineup (auto-generate or manual)
+// @route   PUT /api/matches/:id/lineup
+// @access  Private (Leader/Treasurer)
+export const setMatchLineup = async (req, res) => {
+  try {
+    const matchId = req.params.id;
+    const { teamId, teamA, teamB, autoGenerate } = req.body;
+
+    if (!teamId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team ID is required'
+      });
+    }
+
+    const match = await Match.findById(matchId);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    // Verify user is a member of this team
+    const membership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: teamId,
+      isActive: true
+    });
+
+    if (!membership) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    // Get all participants (users who voted "Participate")
+    const votes = await Vote.find({
+      matchId,
+      status: 'Participate'
+    }).populate('userId', 'name position');
+
+    if (votes.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No participants found for this match'
+      });
+    }
+
+    let lineup;
+
+    if (autoGenerate) {
+      // Auto-generate lineup by balancing positions
+      const positionMap = {
+        'Goalkeeper': 1,
+        'Defender': 4,
+        'Midfielder': 4,
+        'Winger': 2,
+        'Striker': 2
+      };
+
+      // Group players by position
+      const playersByPosition = {};
+      votes.forEach(vote => {
+        const position = vote.userId.position;
+        if (!playersByPosition[position]) {
+          playersByPosition[position] = [];
+        }
+        playersByPosition[position].push(vote.userId);
+      });
+
+      // Distribute players to teams
+      const teamAPlayers = [];
+      const teamBPlayers = [];
+
+      Object.keys(playersByPosition).forEach(position => {
+        const players = playersByPosition[position];
+        players.forEach((player, index) => {
+          if (index % 2 === 0) {
+            teamAPlayers.push({
+              userId: player._id,
+              name: player.name,
+              position: position
+            });
+          } else {
+            teamBPlayers.push({
+              userId: player._id,
+              name: player.name,
+              position: position
+            });
+          }
+        });
+      });
+
+      // Check if teams are balanced
+      if (Math.abs(teamAPlayers.length - teamBPlayers.length) > 1) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot balance teams - Team A: ${teamAPlayers.length}, Team B: ${teamBPlayers.length}`
+        });
+      }
+
+      lineup = {
+        teamA: teamAPlayers,
+        teamB: teamBPlayers
+      };
+    } else {
+      // Manual assignment
+      if (!teamA || !teamB || !Array.isArray(teamA) || !Array.isArray(teamB)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide teamA and teamB as arrays of user IDs'
+        });
+      }
+
+      if (Math.abs(teamA.length - teamB.length) > 1) {
+        return res.status(400).json({
+          success: false,
+          message: `Teams must be balanced (Team A: ${teamA.length}, Team B: ${teamB.length})`
+        });
+      }
+
+      // Fetch user details for both teams
+      const teamAUsers = await User.find({ _id: { $in: teamA } });
+      const teamBUsers = await User.find({ _id: { $in: teamB } });
+
+      lineup = {
+        teamA: teamAUsers.map(user => ({
+          userId: user._id,
+          name: user.name,
+          position: user.position
+        })),
+        teamB: teamBUsers.map(user => ({
+          userId: user._id,
+          name: user.name,
+          position: user.position
+        }))
+      };
+    }
+
+    // Delete existing lineup if any
+    await Lineup.deleteOne({ matchId });
+
+    // Create new lineup
+    const newLineup = await Lineup.create({
+      matchId,
+      teamId,
+      teamA: lineup.teamA,
+      teamB: lineup.teamB
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Lineup set successfully',
+      lineup: newLineup
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error setting match lineup',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get match lineup
+// @route   GET /api/matches/:id/lineup
+// @access  Private
+export const getMatchLineup = async (req, res) => {
+  try {
+    const matchId = req.params.id;
+
+    const match = await Match.findById(matchId);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    // Verify user is a member of this team
+    const membership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: match.teamId,
+      isActive: true
+    });
+
+    if (!membership) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    const lineup = await Lineup.findOne({ matchId });
+
+    if (!lineup) {
+      return res.status(404).json({
+        success: false,
+        message: 'No lineup found for this match'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      lineup
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching match lineup',
       error: error.message
     });
   }

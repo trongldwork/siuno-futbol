@@ -16,6 +16,11 @@ const voteSchema = new mongoose.Schema({
     enum: ['Participate', 'Absent', 'Late'],
     required: true
   },
+  guestCount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   note: {
     type: String,
     trim: true
