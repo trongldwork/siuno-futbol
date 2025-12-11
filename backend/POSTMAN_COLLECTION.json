@@ -1,0 +1,524 @@
+{
+  "info": {
+    "name": "Siuno Futbol API",
+    "description": "Soccer Team Management API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"dob\": \"1990-01-15\",\n  \"position\": \"Striker\",\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('token', jsonData.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Team Management",
+      "item": [
+        {
+          "name": "Create Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teamName\": \"FC Barcelona\",\n  \"monthlyFeeAmount\": 100000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/create-team",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "create-team"]
+            }
+          }
+        },
+        {
+          "name": "Join Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inviteCode\": \"ABC123DEF456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/join",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "join"]
+            }
+          }
+        },
+        {
+          "name": "Renew Invite Link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/invite-link/renew",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "invite-link", "renew"]
+            }
+          }
+        },
+        {
+          "name": "Leave Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/leave",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "leave"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Matches",
+      "item": [
+        {
+          "name": "Create Match",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"time\": \"2024-12-20T15:00:00Z\",\n  \"location\": \"Stadium A\",\n  \"opponentName\": \"Team Rival\",\n  \"contactPerson\": \"Jane Doe\",\n  \"votingDeadline\": \"2024-12-18T23:59:59Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches",
+              "host": ["{{baseUrl}}"],
+              "path": ["matches"]
+            }
+          }
+        },
+        {
+          "name": "Get Upcoming Matches",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches?upcoming=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["matches"],
+              "query": [
+                {
+                  "key": "upcoming",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Match Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/:matchId",
+              "host": ["{{baseUrl}}"],
+              "path": ["matches", ":matchId"]
+            }
+          }
+        },
+        {
+          "name": "Vote for Match",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Participate\",\n  \"note\": \"I'll be there!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/:matchId/vote",
+              "host": ["{{baseUrl}}"],
+              "path": ["matches", ":matchId", "vote"]
+            }
+          }
+        },
+        {
+          "name": "Request Vote Change",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Absent\",\n  \"note\": \"Updated status\",\n  \"reason\": \"Emergency came up\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/:matchId/request-change",
+              "host": ["{{baseUrl}}"],
+              "path": ["matches", ":matchId", "request-change"]
+            }
+          }
+        },
+        {
+          "name": "Approve Vote Change",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"user_id_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/matches/:matchId/approve-change",
+              "host": ["{{baseUrl}}"],
+              "path": ["matches", ":matchId", "approve-change"]
+            }
+          }
+        },
+        {
+          "name": "Lock/Unlock Match",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/matches/:matchId/lock",
+              "host": ["{{baseUrl}}"],
+              "path": ["matches", ":matchId", "lock"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance",
+      "item": [
+        {
+          "name": "Get Finance Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Trigger Monthly Fee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/monthly-fee",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "monthly-fee"]
+            }
+          }
+        },
+        {
+          "name": "Create Transaction (with file)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "amount",
+                  "value": "50000",
+                  "type": "text"
+                },
+                {
+                  "key": "type",
+                  "value": "Expense",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Equipment purchase",
+                  "type": "text"
+                },
+                {
+                  "key": "proofImage",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/transaction",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "transaction"]
+            }
+          }
+        },
+        {
+          "name": "Create Match Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "type",
+                  "value": "MatchExpense",
+                  "type": "text"
+                },
+                {
+                  "key": "relatedMatchId",
+                  "value": "match_id_here",
+                  "type": "text"
+                },
+                {
+                  "key": "totalCost",
+                  "value": "200000",
+                  "type": "text"
+                },
+                {
+                  "key": "totalParticipants",
+                  "value": "20",
+                  "type": "text"
+                },
+                {
+                  "key": "guestCount",
+                  "value": "3",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Match vs Team Rival",
+                  "type": "text"
+                },
+                {
+                  "key": "proofImage",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/transaction",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "transaction"]
+            }
+          }
+        },
+        {
+          "name": "Clear Debt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "userId",
+                  "value": "user_id_here",
+                  "type": "text"
+                },
+                {
+                  "key": "amount",
+                  "value": "100000",
+                  "type": "text"
+                },
+                {
+                  "key": "proofImage",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/clear-debt",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "clear-debt"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
