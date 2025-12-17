@@ -69,12 +69,14 @@ export const getFinanceStats = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      stats: {
-        currentFundBalance: team.currentFundBalance,
-        monthlyFeeAmount: team.monthlyFeeAmount,
-        totalOutstandingDebt: usersWithDebt.reduce((sum, user) => sum + user.debt, 0),
-        usersWithDebt,
-        recentTransactions
+      data: {
+        stats: {
+          currentFundBalance: team.currentFundBalance,
+          monthlyFeeAmount: team.monthlyFeeAmount,
+          totalOutstandingDebt: usersWithDebt.reduce((sum, user) => sum + user.debt, 0),
+          usersWithDebt,
+          recentTransactions
+        }
       }
     });
   } catch (error) {
@@ -199,6 +201,10 @@ export const createTransaction = async (req, res) => {
       });
     }
 
+    // Check user role - Leader/Treasurer auto-approve, Members need approval
+    const isLeaderOrTreasurer = membership.role === 'Leader' || membership.role === 'Treasurer';
+    const transactionStatus = isLeaderOrTreasurer ? 'Approved' : 'Pending';
+
     // Get proof image URL from uploaded file
     const proofImage = req.file ? req.file.path : null;
 
@@ -239,9 +245,11 @@ export const createTransaction = async (req, res) => {
       fundBalanceChange = -transactionAmount;
     }
 
-    // Update team fund balance
-    team.currentFundBalance += fundBalanceChange;
-    await team.save();
+    // Only update team fund balance if transaction is auto-approved
+    if (transactionStatus === 'Approved') {
+      team.currentFundBalance += fundBalanceChange;
+      await team.save();
+    }
 
     // Create transaction record
     const transaction = await Transaction.create({
@@ -251,7 +259,10 @@ export const createTransaction = async (req, res) => {
       description,
       proofImage,
       relatedMatchId: relatedMatchId || null,
-      createdBy: req.user._id
+      createdBy: req.user._id,
+      status: transactionStatus,
+      approvedBy: transactionStatus === 'Approved' ? req.user._id : null,
+      approvedAt: transactionStatus === 'Approved' ? new Date() : null
     });
 
     await transaction.populate('createdBy', 'name');
@@ -261,15 +272,19 @@ export const createTransaction = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Transaction created successfully',
+      message: transactionStatus === 'Approved' 
+        ? 'Transaction created and approved successfully'
+        : 'Transaction created and pending approval',
       transaction,
-      newFundBalance: team.currentFundBalance
+      newFundBalance: team.currentFundBalance,
+      status: transactionStatus
     });
   } catch (error) {
+    console.error('Error creating transaction:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating transaction',
-      error: error.message
+      error: error?.message || String(error)
     });
   }
 };
@@ -705,6 +720,220 @@ export const rejectPaymentRequest = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error rejecting payment request',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Approve transaction (Treasurer/Leader)
+// @route   PUT /api/finance/transaction/:transactionId/approve
+// @access  Private (Treasurer/Leader)
+export const approveTransaction = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { teamId } = req.body;
+
+    if (!teamId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team ID is required'
+      });
+    }
+
+    // Find requester's membership in this team
+    const requesterMembership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: teamId,
+      isActive: true
+    });
+
+    if (!requesterMembership) {
+      return res.status(404).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      teamId: teamId
+    }).populate('createdBy', 'name email');
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaction not found'
+      });
+    }
+
+    if (transaction.status !== 'Pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Transaction has already been ${transaction.status.toLowerCase()}`
+      });
+    }
+
+    const team = await Team.findById(teamId);
+
+    // Calculate fund balance change
+    let fundBalanceChange = 0;
+    if (transaction.type === 'FundCollection' || transaction.type === 'GuestPayment') {
+      fundBalanceChange = transaction.amount;
+    } else if (transaction.type === 'Expense' || transaction.type === 'MatchExpense') {
+      fundBalanceChange = -transaction.amount;
+    }
+
+    // Update team fund balance
+    team.currentFundBalance += fundBalanceChange;
+    await team.save();
+
+    // Update transaction status
+    transaction.status = 'Approved';
+    transaction.approvedAt = new Date();
+    transaction.approvedBy = req.user._id;
+    await transaction.save();
+
+    await transaction.populate('approvedBy', 'name');
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaction approved successfully',
+      transaction,
+      newFundBalance: team.currentFundBalance
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error approving transaction',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Reject transaction (Treasurer/Leader)
+// @route   PUT /api/finance/transaction/:transactionId/reject
+// @access  Private (Treasurer/Leader)
+export const rejectTransaction = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { teamId } = req.body;
+
+    if (!teamId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team ID is required'
+      });
+    }
+
+    // Find requester's membership in this team
+    const requesterMembership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: teamId,
+      isActive: true
+    });
+
+    if (!requesterMembership) {
+      return res.status(404).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      teamId: teamId
+    }).populate('createdBy', 'name email');
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaction not found'
+      });
+    }
+
+    if (transaction.status !== 'Pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Transaction has already been ${transaction.status.toLowerCase()}`
+      });
+    }
+
+    // Update transaction status
+    transaction.status = 'Rejected';
+    transaction.rejectedAt = new Date();
+    await transaction.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaction rejected successfully',
+      transaction
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error rejecting transaction',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get pending transactions (All members - Leader/Treasurer see all, Members see only their own)
+// @route   GET /api/finance/pending-transactions
+// @access  Private (All members)
+export const getPendingTransactions = async (req, res) => {
+  try {
+    const { teamId, limit = 50 } = req.query;
+
+    if (!teamId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team ID is required'
+      });
+    }
+
+    // Find requester's membership in this team
+    const requesterMembership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: teamId,
+      isActive: true
+    });
+
+    if (!requesterMembership) {
+      return res.status(404).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    // Build query based on role
+    const query = {
+      teamId,
+      status: 'Pending'
+    };
+
+    // Members can only see their own pending transactions
+    // Leader/Treasurer can see all pending transactions
+    if (requesterMembership.role !== 'Leader' && requesterMembership.role !== 'Treasurer') {
+      query.createdBy = req.user._id;
+    }
+
+    const pendingTransactions = await Transaction.find(query)
+      .populate('createdBy', 'name email')
+      .populate('relatedUserId', 'name')
+      .populate('relatedMatchId', 'opponentName time')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions: pendingTransactions
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching pending transactions',
       error: error.message
     });
   }

@@ -31,4 +31,22 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
+// Error handling middleware wrapper
+const handleUploadError = (uploadMiddleware) => {
+  return (req, res, next) => {
+    uploadMiddleware(req, res, (err) => {
+      if (err) {
+        console.error('Upload error:', err);
+        return res.status(400).json({
+          success: false,
+          message: err.message || 'File upload failed',
+          error: String(err)
+        });
+      }
+      next();
+    });
+  };
+};
+
 export default upload;
+export { handleUploadError };

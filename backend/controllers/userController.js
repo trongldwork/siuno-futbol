@@ -412,3 +412,120 @@ export const kickMember = async (req, res) => {
     });
   }
 };
+
+// @desc    Get team members
+// @route   GET /api/users/team/:teamId/members
+// @access  Private (Team members only)
+export const getTeamMembers = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+
+    // Check if requester is a member of this team
+    const requesterMembership = await TeamMember.findOne({
+      userId: req.user._id,
+      teamId: teamId,
+      isActive: true
+    });
+
+    if (!requesterMembership) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a member of this team'
+      });
+    }
+
+    // Get all active team members
+    const members = await TeamMember.find({
+      teamId: teamId,
+      isActive: true
+    })
+      .populate('userId', 'name email position')
+      .sort({ role: 1, joinedAt: 1 }); // Leader first, then by join date
+
+    // Format response
+    const formattedMembers = members.map(member => ({
+      id: member.userId._id,
+      name: member.userId.name,
+      email: member.userId.email,
+      position: member.userId.position,
+      role: member.role,
+      debt: member.debt,
+      joinedAt: member.joinedAt
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: 'Team members retrieved successfully',
+      data: {
+        members: formattedMembers,
+        total: formattedMembers.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching team members',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Delete team
+// @route   DELETE /api/users/team/:teamId
+// @access  Private (Leader only)
+export const deleteTeam = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+
+    // Get team
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: 'Team not found'
+      });
+    }
+
+    // Check if there are active members other than leader
+    const activeMembers = await TeamMember.find({
+      teamId,
+      isActive: true
+    });
+
+    if (activeMembers.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete team with active members. Please kick all members first.'
+      });
+    }
+
+    // Check if team has any outstanding debt
+    const totalDebt = activeMembers.reduce((sum, member) => sum + member.debt, 0);
+    if (totalDebt > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete team with outstanding debt'
+      });
+    }
+
+    // Deactivate all memberships
+    await TeamMember.updateMany(
+      { teamId },
+      { isActive: false }
+    );
+
+    // Delete team
+    await Team.findByIdAndDelete(teamId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Team deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting team',
+      error: error.message
+    });
+  }
+};

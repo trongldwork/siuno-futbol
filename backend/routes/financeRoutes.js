@@ -8,10 +8,13 @@ import {
   createPaymentRequest,
   approvePaymentRequest,
   rejectPaymentRequest,
-  getPaymentRequests
+  getPaymentRequests,
+  approveTransaction,
+  rejectTransaction,
+  getPendingTransactions
 } from '../controllers/financeController.js';
 import { protect, authorize, requireTeam } from '../middleware/auth.js';
-import upload from '../middleware/upload.js';
+import upload, { handleUploadError } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -25,7 +28,7 @@ router.use(requireTeam);
  *   get:
  *     tags: [Finance]
  *     summary: Get finance statistics
- *     description: Get current fund balance, debt list, and recent transactions (Leader/Treasurer only)
+ *     description: Get current fund balance, debt list, and recent transactions (All members can view)
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -51,10 +54,8 @@ router.use(requireTeam);
  *                       type: array
  *                     recentTransactions:
  *                       type: array
- *       403:
- *         description: Forbidden - Leader/Treasurer only
  */
-router.get('/stats', authorize('Leader', 'Treasurer'), getFinanceStats);
+router.get('/stats', getFinanceStats);
 
 /**
  * @swagger
@@ -79,7 +80,7 @@ router.post('/monthly-fee', authorize('Leader', 'Treasurer'), triggerMonthlyFee)
  *   post:
  *     tags: [Finance]
  *     summary: Create transaction
- *     description: Create a financial transaction with optional proof image (Leader/Treasurer only)
+ *     description: Create a financial transaction with optional proof image (All members can create, but Members need approval)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -121,10 +122,102 @@ router.post('/monthly-fee', authorize('Leader', 'Treasurer'), triggerMonthlyFee)
  *     responses:
  *       201:
  *         description: Transaction created successfully
+ */
+router.post('/transaction', handleUploadError(upload.single('proofImage')), createTransaction);
+
+/**
+ * @swagger
+ * /api/finance/pending-transactions:
+ *   get:
+ *     tags: [Finance]
+ *     summary: Get pending transactions
+ *     description: List pending transactions (All members can see their own, Leader/Treasurer see all)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: teamId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Pending transactions retrieved successfully
+ */
+router.get('/pending-transactions', getPendingTransactions);
+
+/**
+ * @swagger
+ * /api/finance/transaction/{transactionId}/approve:
+ *   put:
+ *     tags: [Finance]
+ *     summary: Approve transaction
+ *     description: Approve a pending transaction (Leader/Treasurer only)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: transactionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - teamId
+ *             properties:
+ *               teamId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Transaction approved successfully
  *       403:
  *         description: Forbidden - Leader/Treasurer only
  */
-router.post('/transaction', authorize('Leader', 'Treasurer'), upload.single('proofImage'), createTransaction);
+router.put('/transaction/:transactionId/approve', authorize('Leader', 'Treasurer'), approveTransaction);
+
+/**
+ * @swagger
+ * /api/finance/transaction/{transactionId}/reject:
+ *   put:
+ *     tags: [Finance]
+ *     summary: Reject transaction
+ *     description: Reject a pending transaction (Leader/Treasurer only)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: transactionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - teamId
+ *             properties:
+ *               teamId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Transaction rejected successfully
+ *       403:
+ *         description: Forbidden - Leader/Treasurer only
+ */
+router.put('/transaction/:transactionId/reject', authorize('Leader', 'Treasurer'), rejectTransaction);
 
 /**
  * @swagger
@@ -160,7 +253,7 @@ router.post('/transaction', authorize('Leader', 'Treasurer'), upload.single('pro
  *       403:
  *         description: Forbidden - Leader/Treasurer only
  */
-router.post('/clear-debt', authorize('Leader', 'Treasurer'), upload.single('proofImage'), clearDebt);
+router.post('/clear-debt', upload.single('proofImage'), authorize('Leader', 'Treasurer'), clearDebt);
 
 /**
  * @swagger
@@ -204,7 +297,7 @@ router.post('/clear-debt', authorize('Leader', 'Treasurer'), upload.single('proo
  *       403:
  *         description: Forbidden - Leader/Treasurer only
  */
-router.post('/assign-debt', authorize('Leader', 'Treasurer'), upload.single('proofImage'), assignDebt);
+router.post('/assign-debt', upload.single('proofImage'), authorize('Leader', 'Treasurer'), assignDebt);
 
 /**
  * @swagger

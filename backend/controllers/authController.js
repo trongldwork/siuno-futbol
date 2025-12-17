@@ -157,14 +157,16 @@ export const getProfile = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        dob: user.dob,
-        position: user.position,
-        phone: user.phone,
-        teams: teams
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          dob: user.dob,
+          position: user.position,
+          phone: user.phone,
+          teams: teams
+        }
       }
     });
   } catch (error) {

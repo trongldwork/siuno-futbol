@@ -106,8 +106,11 @@ export const getMatches = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      count: matchesWithVotes.length,
-      matches: matchesWithVotes
+      message: 'Matches retrieved successfully',
+      data: {
+        matches: matchesWithVotes,
+        count: matchesWithVotes.length
+      }
     });
   } catch (error) {
     res.status(500).json({
@@ -340,11 +343,17 @@ export const getMatchDetails = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      match: {
-        ...match.toObject(),
-        isVotingOpen: new Date() < match.votingDeadline && !match.isLocked,
-        voteCounts,
-        votes
+      message: 'Match details retrieved successfully',
+      data: {
+        match: {
+          ...match.toObject(),
+          isVotingOpen: new Date() < match.votingDeadline && !match.isLocked,
+          voteCounts,
+          votes,
+          participantCount: voteCounts.participate,
+          absentCount: voteCounts.absent,
+          lateCount: voteCounts.late
+        }
       }
     });
   } catch (error) {

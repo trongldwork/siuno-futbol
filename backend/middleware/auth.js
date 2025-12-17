@@ -52,8 +52,8 @@ export const protect = async (req, res, next) => {
 // Authorize specific roles
 export const authorize = (...roles) => {
   return async (req, res, next) => {
-    // Get teamId from request body or query
-    const teamId = req.body.teamId || req.query.teamId;
+    // Get teamId from request body, query, or params
+    const teamId = req.body.teamId || req.query.teamId || req.params.teamId;
 
     if (!teamId) {
       return res.status(400).json({

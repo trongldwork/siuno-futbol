@@ -5,7 +5,9 @@ import {
   renewInviteLink,
   createTeam,
   changeRole,
-  kickMember
+  kickMember,
+  deleteTeam,
+  getTeamMembers
 } from '../controllers/userController.js';
 import { protect, authorize, requireTeam } from '../middleware/auth.js';
 
@@ -178,5 +180,59 @@ router.put('/change-role', protect, requireTeam, authorize('Leader'), changeRole
  *         description: Forbidden - Leader only
  */
 router.post('/kick-member', protect, requireTeam, authorize('Leader'), kickMember);
+
+/**
+ * @swagger
+ * /api/users/team/{teamId}/members:
+ *   get:
+ *     tags: [Team]
+ *     summary: Get team members
+ *     description: Get all active members of a team (accessible by team members)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: teamId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Team ID
+ *     responses:
+ *       200:
+ *         description: Team members retrieved successfully
+ *       403:
+ *         description: Forbidden - Team members only
+ *       404:
+ *         description: Team not found
+ */
+router.get('/team/:teamId/members', protect, getTeamMembers);
+
+/**
+ * @swagger
+ * /api/users/team/{teamId}:
+ *   delete:
+ *     tags: [Team]
+ *     summary: Delete team
+ *     description: Delete a team (Leader only, no active members except leader, no debt)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: teamId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Team ID
+ *     responses:
+ *       200:
+ *         description: Team deleted successfully
+ *       400:
+ *         description: Cannot delete team with active members or outstanding debt
+ *       403:
+ *         description: Forbidden - Leader only
+ *       404:
+ *         description: Team not found
+ */
+router.delete('/team/:teamId', protect, requireTeam, authorize('Leader'), deleteTeam);
 
 export default router;
